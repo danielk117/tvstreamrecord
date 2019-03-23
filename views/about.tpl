@@ -1,7 +1,7 @@
-<div id="about" class="ui-widget">
-    <p><b><font size="6">Tvstreamrecord</font></b></p>
-
-    <p><b>Support</b>
+<div id="users-contain" class="">
+    <h1>Tvstreamrecord</h1>
+    <h2>Support</h2>
+    <p>
         <ul>
             <li><a href="http://pavion.github.io/tvstreamrecord/">Project main page</a></li>
             <li><a href="https://raw.github.com/Pavion/tvstreamrecord/master/manual.pdf">Software manual</a></li>
@@ -10,9 +10,8 @@
             <li><a href="mailto:tvstreamrecord@gmail.com">E-Mail</a></li>
         </ul>
     </p>   
-    <p><b>Changes</b><br>
-    <div id="changelog">
-{{changelog}}
-    </div>   
+    <h2>Changes</h2>
+    <p>
+        <div id="changelog">{{changelog}}</div>   
     </p>
 </div>

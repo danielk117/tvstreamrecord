@@ -63,7 +63,7 @@ localtime = "%H:%M"
 localdate = "%d.%m.%Y"
 dayshown = datetime.combine(date.today(), time.min)
 shutdown = False
-version = '1.4.2'
+version = '1.4.1'
 
 @route('/live/<filename>')
 def server_static9(filename):
@@ -81,6 +81,9 @@ def write_m3u(name, path):
     f.write(path+"\n")
     f.close()
 
+@route('/manifest.webmanifest')
+def server_static8():
+    return static_file("/manifest.webmanifest", root='')
 @route('/channels.m3u')
 def server_static8():
     return static_file("/channels.m3u", root='')
@@ -113,6 +116,9 @@ def server_static4(curstyle,filename):
 def server_static3(filename):
     return static_file(filename, root='./css')
 # Common images
+@route('/images/icons/<filename>')
+def server_static5(filename):
+    return static_file(filename, root='./images/icons')
 @route('/images/<filename>')
 def server_static5(filename):
     return static_file(filename, root='./images')
@@ -663,14 +669,8 @@ def zoom_p():
     config.saveConfig()
     return "null"
 
-@post('/setsearch')
-def setsearch_p():
-    search = request.forms.search
-    sqlRun("REPLACE INTO config(param, value) VALUES('cfg_epgchart_search', ?);", (search, ))
-
-@route('/epgchart&<keyword>')
 @route('/epgchart')
-def epg_s(keyword=''):
+def epg_s():
     grabthread.setChannelCount()
 
     global dayshown
@@ -723,27 +723,74 @@ def epg_s(keyword=''):
     for row in rows:
         cid=row[1]
         rtemp = list()
-        c_rows=sqlRun("SELECT g_title, g_start, g_stop, g_desc, guide.rowid, COALESCE(records.rowid, recurr.rid, recurry.rid, -1) FROM guide " +
-        "LEFT JOIN records ON records.cid=:1 AND guide.g_start>=records.rvon and guide.g_stop<=records.rbis " +
-        "LEFT JOIN (" +
-          "SELECT recname,cid, datetime(rvon, '+' || (julianday(date(:2)) - julianday(date(rvon))) || ' day') as rvon, datetime(rbis, '+' || (julianday(date(:2)) - julianday(date(rvon))) || ' day') as rbis, renabled, rmask, uniqueid, records.rowid as RID FROM records WHERE records.rmask & :3 = :3 AND date(records.rvon)<date(:2) AND cid=:1" +
-        ") AS recurr ON guide.g_start>=recurr.rvon and guide.g_stop<=recurr.rbis " +
-        "LEFT JOIN (" +
-          "SELECT recname,cid, datetime(rvon, '+' || (julianday(date(:4)) - julianday(date(rvon))) || ' day') as rvon, datetime(rbis, '+' || (julianday(date(:4)) - julianday(date(rvon))) || ' day') as rbis, renabled, rmask, uniqueid, records.rowid as RID FROM records WHERE records.rmask & :5 = :5 AND date(rbis, '+' || (julianday(date(:4)) - julianday(date(rvon))) || ' day')=date(:2) AND cid=:1" +
-        ") AS recurry ON guide.g_start>=recurry.rvon and guide.g_stop<=recurry.rbis " +
-        "WHERE (date(g_start)=date(:2) OR date(g_stop)=date(:2)) AND datetime(g_stop, '+60 minutes')>datetime('now', 'localtime') AND g_id=:6 ORDER BY g_start", (cid, todaysql, weekbit, yestersql, weekbit_y, row[0]))
-        if config.cfg_switch_epg_overlay == "1":
+        c_rows=sqlRun("SELECT g_title, g_start, g_stop, g_desc, guide.rowid, '-2', '-3' FROM guide WHERE (date(g_start)=date(:1) OR date(g_stop)=date(:1)) AND datetime(g_stop, '+60 minutes')>datetime('now', 'localtime') AND g_id=:2 ORDER BY g_start", (todaysql, row[0]))
+
+        #c_rows=sqlRun("SELECT g_title, g_start, g_stop, g_desc, guide.rowid, COALESCE(records.rowid, recurr.rid, recurry.rid, -1), ((julianday(min(g_stop, records.rbis, recurr.rbis, recurry.rbis))-julianday(max(g_start, records.rvon, recurr.rvon, recurry.rvon))) * 24 * 60) as rtime FROM guide " +
+        #"LEFT JOIN records ON records.cid=:1 AND guide.g_start>=records.rvon and guide.g_stop<=records.rbis " +
+        #"LEFT JOIN (" +
+        #  "SELECT recname,cid, datetime(rvon, '+' || (julianday(date(:2)) - julianday(date(rvon))) || ' day') as rvon, datetime(rbis, '+' || (julianday(date(:2)) - julianday(date(rvon))) || ' day') as rbis, renabled, rmask, uniqueid, records.rowid as RID FROM records WHERE records.rmask & :3 = :3 AND date(records.rvon)<date(:2) AND cid=:1" +
+        #") AS recurr ON guide.g_start>=recurr.rvon and guide.g_stop<=recurr.rbis " +
+        #"LEFT JOIN (" +
+        #  "SELECT recname,cid, datetime(rvon, '+' || (julianday(date(:4)) - julianday(date(rvon))) || ' day') as rvon, datetime(rbis, '+' || (julianday(date(:4)) - julianday(date(rvon))) || ' day') as rbis, renabled, rmask, uniqueid, records.rowid as RID FROM records WHERE records.rmask & :5 = :5 AND date(rbis, '+' || (julianday(date(:4)) - julianday(date(rvon))) || ' day')=date(:2) AND cid=:1" +
+        #") AS recurry ON guide.g_start>=recurry.rvon and guide.g_stop<=recurry.rbis " +
+        #"WHERE (date(g_start)=date(:2) OR date(g_stop)=date(:2)) AND datetime(g_stop, '+60 minutes')>datetime('now', 'localtime') AND g_id=:6 ORDER BY g_start", (cid, todaysql, weekbit, yestersql, weekbit_y, row[0]))
+        #if config.cfg_switch_epg_overlay == "1":
             # adding today records for overlay
-            c_rows += sqlRun("SELECT '', records.rvon, records.rbis, '', -2, -1 FROM records WHERE records.cid=:1 AND (date(records.rvon)=date(:2) OR date(records.rbis)=date(:2)) AND renabled=1 ORDER BY rvon", (cid, todaysql))
+            #c_rows += sqlRun("SELECT '', records.rvon, records.rbis, '', -2, -1, 1 FROM records WHERE records.cid=:1 AND (date(records.rvon)=date(:2) OR date(records.rbis)=date(:2)) AND renabled=1 ORDER BY rvon", (cid, todaysql))
             # adding recurrent records not yet scheduled
-            c_rows += sqlRun("SELECT '', datetime(rvon, '+' || (julianday(:1) - julianday(date(rvon))) || ' day'), datetime(rbis, '+' || (julianday(:1) - julianday(date(rvon))) || ' day'), '', -2, -1 FROM records WHERE records.cid=:2 AND records.rmask & :3 = :3 AND records.renabled=1 AND date(records.rvon)<date(:1)", (todaysql, cid, weekbit))
+            #c_rows += sqlRun("SELECT '', datetime(rvon, '+' || (julianday(:1) - julianday(date(rvon))) || ' day'), datetime(rbis, '+' || (julianday(:1) - julianday(date(rvon))) || ' day'), '', -2, -1, 1 FROM records WHERE records.cid=:2 AND records.rmask & :3 = :3 AND records.renabled=1 AND date(records.rvon)<date(:1)", (todaysql, cid, weekbit))
             # adding overnight recurrent records
-            c_rows += sqlRun("SELECT '', datetime(rvon, '+' || (julianday(:1) - julianday(date(rvon))) || ' day'), datetime(rbis, '+' || (julianday(:1) - julianday(date(rvon))) || ' day'), '', -2, -1 FROM records WHERE records.cid=:2 AND records.rmask & :3 = :3 AND records.renabled=1 AND date(rbis, '+' || (julianday(:1) - julianday(date(rvon))) || ' day')=date(:4)", (yestersql, cid, weekbit_y, todaysql))
+            #c_rows += sqlRun("SELECT '', datetime(rvon, '+' || (julianday(:1) - julianday(date(rvon))) || ' day'), datetime(rbis, '+' || (julianday(:1) - julianday(date(rvon))) || ' day'), '', -2, -1, 1 FROM records WHERE records.cid=:2 AND records.rmask & :3 = :3 AND records.renabled=1 AND date(rbis, '+' || (julianday(:1) - julianday(date(rvon))) || ' day')=date(:4)", (yestersql, cid, weekbit_y, todaysql))
+        last_bis = datetime.now()
         for event in c_rows:
 
             d_von = datetime.strptime(event[1],"%Y-%m-%d %H:%M:%S")
             d_bis = datetime.strptime(event[2],"%Y-%m-%d %H:%M:%S")
 
+            # quick and dirty fix for duplicate elements
+            last_diff = total(tDiff(d_bis,last_bis))
+            if last_diff==0:
+                continue
+
+            # whitespace between elements
+            last_diff = total(tDiff(d_von,last_bis))
+            if last_diff>0:
+                b_von = last_bis
+                b_bis = d_von
+                if b_von < daystart:
+                    b_von = daystart
+                if b_bis.date() > daystart.date():
+                    b_bis=datetime.combine(b_bis.date(),time.min)
+                x = total(b_von - daystart)
+                w = total(b_bis - b_von)
+                if x >= 0 and w > 0:
+                    rtemp.append ([cid, x/totalwidth*100.0*widthq, w/totalwidth*100.0*widthq, 'Pause', b_von, b_bis, 'Pause zwischen Sendungen...', -1, -1, -1, -1])
+
+            # search record times
+            recs=sqlRun("SELECT rvon, rbis, rowid FROM records WHERE cid=:1 and ((rvon>=:2 and rvon<=:3) or (rbis>=:2 and rbis<=:3) or (rvon<=:2 and rbis>=:3))", (str(cid), event[1], event[2]))
+            times="x"
+            if len(recs)>=1:
+                rec_min=recs[0][0]
+                rec_max=recs[0][1]
+                rec_id=recs[0][3]
+                r_total=0
+                for rec in recs:
+                    rec_min=min(rec_min, rec[0])
+                    rec_max=max(rec_max, rec[1])
+                    tmp=total(tDiff(rec[1],rec[0]))
+                    r_total=max(r_total, tmp)
+                    if (r_total==tmp):
+                        rec_id=rec[3]
+                r_von = datetime.strptime(rec_min,"%Y-%m-%d %H:%M:%S")
+                r_bis = datetime.strptime(rec_max,"%Y-%m-%d %H:%M:%S")
+
+                g_total = total(tDiff(d_bis,d_von))
+                r_before = total(tDiff(max(d_von, r_von),d_von))
+                r_duration = total(tDiff(min(d_bis, r_bis),max(d_von, r_von)))
+                r_after = total(tDiff(min(d_bis, r_bis),d_bis))
+                times = str(r_before/g_total*100) + ";" + str(r_duration/g_total*100) + ";" + str(r_after/g_total*100);
+
+            # set x and w
             if d_von < daystart:
                 d_von = daystart
             if d_bis.date() > daystart.date():
@@ -755,31 +802,16 @@ def epg_s(keyword=''):
             d_von = datetime.strptime(event[1],"%Y-%m-%d %H:%M:%S")
             d_bis = datetime.strptime(event[2],"%Y-%m-%d %H:%M:%S")
 
+            last_bis = d_bis
+
             if x >= 0 and w > 0:
-                rtemp.append ([cid, x/totalwidth*100.0*widthq, w/totalwidth*100.0*widthq, event[0], d_von, d_bis, event[3], event[4], row[2], event[5]])
+                rtemp.append ([cid, x/totalwidth*100.0*widthq, w/totalwidth*100.0*widthq, event[0], d_von, d_bis, event[3], event[4], row[2], event[5], times])
         ret.append(rtemp)
-        if keyword is '':
-            try:
-                keyword = sqlRun("SELECT value FROM config WHERE param='cfg_epgchart_search'")[0][0]
-            except:
-                pass
-        else:
-            try:
-                keyword = keyword.decode("utf-8")
-            except:
-                pass
-            keyword = keyword.replace('%20',' ')
-    return internationalize(template('epgchart', keyword_for_epg=keyword, curr=datetime.strftime(dayshown, "%Y-%m-%d"), rowss=ret, zoom=config.cfg_grab_zoom, rows2=sqlRun('SELECT cid, cname FROM channels where cenabled=1 ORDER BY cid'), deltab=config.cfg_delta_before_epg, deltaa=config.cfg_delta_after_epg))
+    return internationalize(template('epgchart', curr=datetime.strftime(dayshown, "%Y-%m-%d"), rowss=ret, zoom=config.cfg_grab_zoom, rows2=sqlRun('SELECT cid, cname FROM channels where cenabled=1 ORDER BY cid'), deltab=config.cfg_delta_before_epg, deltaa=config.cfg_delta_after_epg))
 
 @route('/epglist')
 @route('/epglist&<keyword>')
 def epglist_s(keyword=''):
-    if not keyword is '':
-        try:
-            keyword = keyword.decode("utf-8")
-        except:
-            pass
-        keyword = keyword.replace('%20',' ')
     return internationalize(template('epglist', keyword_for_epg=keyword, listmode=config.cfg_switch_epglist_mode, rows2=sqlRun('SELECT cid, cname FROM channels where cenabled=1 ORDER BY cid'), deltab=config.cfg_delta_before_epg, deltaa=config.cfg_delta_after_epg))
 
 @route('/epglist_getter')
@@ -1043,6 +1075,7 @@ class record(Thread):
         self.name = row[5]
         self.url = row[1].strip()
         self.mask = row[6]
+        self.cid = row[8]
         self.myrow = row
         if config.cfg_retry_count.isdigit():
             self.retry_count = int(config.cfg_retry_count)
@@ -1076,6 +1109,12 @@ class record(Thread):
                     sqlRun("UPDATE records SET renabled=0 WHERE rowid=?", (t.id, ))
                     t.stop()
         self.running = 1
+
+        runningcount = 0
+        for t in records:
+            if t.isRunning():
+                runningcount += 1
+        print ("total records: %d // running records: %d" % (len(records), runningcount))
 
         fftypes = config.cfg_ffmpeg_types
         fftypes = fftypes.lower().split()
@@ -1156,7 +1195,20 @@ class record(Thread):
             if self.ffmpeg == 0:
                 self.ffmpeg = 1
 
+            # attr = [config.cfg_ffmpeg_path,"-i", self.url, '-y', '-t', deltasec] + ffargs + [fn]
+
+            # ffmpeg_path = config.cfg_ffmpeg_path
+            # if (runningcount > 1):
+            # if (runningcount == 1):
+                # ffmpeg_path = 'BIND_ADDR="192.168.170.45" LD_PRELOAD=/usr/lib/bind.so sudo ' + ffmpeg_path
+            # attr = [ffmpeg_path,"-i", self.url, '-y', '-t', deltasec] + ffargs + [fn]
+            # attr = [ffmpeg_path,"-i", ('"'+self.url+'"'), '-y', '-t', deltasec] + ffargs + [('"'+fn+'"')]
+
+            # attr = [config.cfg_ffmpeg_path,"-i", ('"'+self.url+'"'), '-y', '-t', deltasec] + ffargs + [('"'+fn+'"')]
+            # attr = " ".join(attr)
+
             attr = shlex.split(config.cfg_ffmpeg_path) + ["-i", self.url, '-y', '-t', deltasec] + ffargs + [fn]
+
             print ("FFMPEG (%s) record '%s' called with:" % (streamtype, self.name))
             print (attr)
             try:
@@ -1164,16 +1216,21 @@ class record(Thread):
                     os.environ["http_proxy"] = config.cfg_proxy
                 else:
                     os.environ["http_proxy"] = ""
+                # self.process = subprocess.Popen(attr, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 self.process = subprocess.Popen(attr, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 cleaner = Timer(delta+30, self.cleanProcess) # if ffmpeg won't exit, try to terminate its process in 30 seconds
                 cleaner.start()
                 out, err = self.process.communicate()
                 #self.process.wait() # oops... not needed? harmless!
+                # self.process.wait()
                 cleaner.cancel()
-                if err:
-                    print ("FFMPEG record '%s' ended with an error:\n%s" % (self.name, err))
-                else:
-                    print ("FFMPEG record '%s' ended" % self.name)
+                # if err:
+                #     print ("FFMPEG record '%s' ended with an error:\n%s" % (self.name, err))
+                # else:
+                #     print ("FFMPEG record '%s' ended" % self.name)
+                print ("FFMPEG record '%s' ended" % self.name)
+                print (out)
+                print (err)
             except Exception as ex:
                 print ("FFMPEG could not be started. Error: %s" % (ex))
         else:
@@ -1259,8 +1316,11 @@ class record(Thread):
 
     def stop(self):
         if self.running==0:
-            self.timer.cancel()
+            # self.timer.cancel()
+            if not self.timer == None:
+                self.timer.cancel()
         self.stopflag = 1
+        # self.cleanProcess()
         if not self.process==None:
             if self.process.poll()==None:
                 self.process.terminate()

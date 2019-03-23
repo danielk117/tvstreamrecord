@@ -1,5 +1,5 @@
 %include ('create.tpl')
-<div id="users-contain" class="ui-widget">
+<div id="users-contain" class="">
     <h1>Channels:
         <button id="button_create_channel">§Create new§</button>
         <button id="button_import_clist">§Import§</button>
